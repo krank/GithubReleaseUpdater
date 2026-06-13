@@ -1,0 +1,9 @@
+{
+  "name" : "Software name",
+  "out_directory" : "./DirName/",
+  "repo" : "githubuser/reponame",
+  "file_to_date" : "filename.exe",
+  "asset_name_regex" : ".",
+  "include_drafts" : false,
+  "include_prerelease" : false
+}
