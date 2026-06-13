@@ -1,8 +1,8 @@
-$outDirectory = ".\UZDoom\"
+$outDirectory = ".\latest\"
 $tempDirectory = ".\temp\"
-$tempFileName = "uzdoom.zip"
-$repo = "uzdoom/uzdoom"
-$fileToDate = "uzdoom.exe"
+$tempFileName = "tmp.zip"
+$repo = "username/reponame"
+$fileToDate = "something.exe"
 $assetNameRegex = "^Windows"
 
 $includeDrafts = $false
