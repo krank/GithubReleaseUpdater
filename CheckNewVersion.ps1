@@ -1,8 +1,11 @@
 $tempFileName = "tmp.zip"
 $tempDirectory = ".\temp\"
 
+#TODO: Support for flattening; if the downloaded zip contains a single directory, move contents to tempdir and delete it
+
 # READ CONFIG
 #region Config
+
 # Find the config file
 $ConfigJsonFilename = ""
 if (($args.Count -gt 0) -and (Test-Path $args[0])) {
@@ -17,7 +20,7 @@ else {
 }
 
 # Get the contents as JSON
-$JSON = Get-Content $ConfigJsonFilename | ConvertFrom-Json
+$JSON = Get-Content $ConfigJsonFilename -Raw | ConvertFrom-Json
 
 #endregion
 
@@ -41,19 +44,17 @@ function Write-TwoCols {
 
 #endregion
 
-# UPGRADE FUNCTION
-#region Upgrade function
+# UPDATE FUNCTIONS
+#region Update functions
 
-function Perform-Upgrade {
+function DownloadAndExpandAsset {
   param (
-    $asset,
-    $tempDirectory,
-    $outDirectory
+    $asset
   )
 
   # Setup variables
   $tempZipFile = Join-Path $tempDirectory $tempFileName;
-  $expandedFilesDir = Join-Path $tempDirectory "latest";
+  $newFilesDirectory = Join-Path $tempDirectory "latest";
 
   # Setup temp folder
   if ((Test-Path -Path $tempDirectory)) {
@@ -68,17 +69,81 @@ function Perform-Upgrade {
 
   # Extract zip
   Write-Host " Extracting..." -ForegroundColor Magenta
-  Expand-Archive $tempZipFile -DestinationPath $expandedFilesDir
+  Expand-Archive $tempZipFile -DestinationPath $newFilesDirectory
+}
 
-  # Copy/Overwrite what is in the emulator folder
+function CheckIfAssetIsNewer {
+  param (
+    $JSON,
+    $validAsset
+  )
+
+  # Get dates
+  $fileToDateFullpath = Join-Path $JSON.out_directory $JSON.file_to_date
+  $exeLastUpdatedDate = if (Test-Path $fileToDateFullpath) { 
+    (Get-Item $fileToDateFullpath).LastWriteTime 
+  }
+  else { 
+    Get-Date -Date "1970-01-01 00:00:00Z" 
+  }
+  $lastReleaseDate = [datetime]$validAsset.updated_at
+
+  # Compare dates
+  Write-TwoCols " Local file date:" $exeLastUpdatedDate.Date.ToString("yyyyMMdd") 35 Green
+  Write-TwoCols " Latest release:" $lastReleaseDate.Date.ToString("yyyyMMdd") 35 Green
+
+  return $lastReleaseDate.Date -gt $exeLastUpdatedDate.Date
+
+}
+
+function MoveNewFilesToTargetDir {
+  param (
+    $JSON
+  )
+  $newFilesDirectory = Join-Path $tempDirectory "latest";
+
+  # Copy/Overwrite what is in the target folder
   Write-Host " Copying..." -ForegroundColor Magenta
-  Copy-item -Force -Recurse $expandedFilesDir -Destination $JSON.out_directory
+  Copy-item -Force -Recurse $newFilesDirectory -Destination $JSON.out_directory
 
   # Delete downloaded temp files when done to prep for next version
   Write-Host " Cleaning up..." -ForegroundColor Magenta
   Remove-Item -Path $tempDirectory -recurse
 
   Write-Host " DONE" -ForegroundColor Magenta
+}
+
+function Update {
+  param (
+    $JSON
+  )
+
+  Write-host ("Looking for updates to " + $JSON.name)
+
+  # Get latest release info
+  $jsonResponse = Invoke-RestMethod -Uri ("https://api.github.com/repos/" + $JSON.repo + "/releases")
+
+  # Find first valid release & asset
+  $validRelease = ($jsonResponse | Where-Object { 
+      ($_.draft -eq $false -or $JSON.include_drafts -eq $true) -and
+      ($_.prerelease -eq $false -or $JSON.include_prerelease -eq $true)
+    } | Select-Object -First 1)
+
+  $validAsset = ($validRelease.assets | Where-Object {
+      $_.name -match $JSON.asset_name_regex
+    } | Select-Object -First 1)
+
+  $IsNewer = CheckIfAssetIsNewer $JSON $validAsset
+
+  if ($IsNewer) {
+    Write-Host " New version detected!"
+
+    DownloadAndExpandAsset $validAsset
+    MoveNewFilesToTargetDir $JSON
+  }
+  else {
+    Write-Host "No new version detected"
+  }
 }
 
 #endregion
@@ -88,46 +153,22 @@ function Perform-Upgrade {
 # MAIN SCRIPT
 #region Main script
 
-Write-host ("Looking for updates to " + $JSON.name)
+Write-Host $JSON[0].GetType()
 
+if ($JSON -is [Array]) {
+  Write-Host "Multiple configs detected"
 
-# # Get latest release info
-$jsonResponse = Invoke-RestMethod -Uri ("https://api.github.com/repos/" + $JSON.repo + "/releases")
+  foreach ($JSONsub in $JSON) {
+    Update $JSONsub
+  }
 
-# Find first valid release & asset
-$validRelease = ($jsonResponse | Where-Object { 
-    ($_.draft -eq $false -or $JSON.include_drafts -eq $true) -and
-    ($_.prerelease -eq $false -or $JSON.include_prerelease -eq $true)
-  } | Select-Object -First 1)
-
-$validAsset = ($validRelease.assets | Where-Object {
-    $_.name -match $JSON.asset_name_regex
-  } | Select-Object -First 1)
-
-$validAsset.name
-
-# Get dates
-$fileToDateFullpath = Join-Path $JSON.out_directory $JSON.file_to_date
-$exeLastUpdatedDate = if (Test-Path $fileToDateFullpath) { 
-  (Get-Item $fileToDateFullpath).LastWriteTime 
-}
-else { 
-  Get-Date -Date "1970-01-01 00:00:00Z" 
-}
-$lastReleaseDate = [datetime]$validAsset.updated_at
-
-# Compare dates
-Write-TwoCols " Local file date:" $exeLastUpdatedDate.Date.ToString("yyyyMMdd") 35 Green
-Write-TwoCols " Latest release:" $lastReleaseDate.Date.ToString("yyyyMMdd") 35 Green
-
-if ($lastReleaseDate.Date -gt $exeLastUpdatedDate.Date) {
-  Write-Host " New version detected!"
-
-  Perform-Upgrade $validAsset $tempDirectory $JSON.out_directory
 }
 else {
-  Write-Host "No new version detected"
+
+  Write-Host "Single config detected"
+  Update $JSON
 }
+
 
 Read-Host -Prompt "Press Enter to exit"
 
