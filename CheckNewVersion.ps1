@@ -133,6 +133,12 @@ function Update {
       $_.name -match $JSON.asset_name_regex
     } | Select-Object -First 1)
 
+  if (-not $validAsset)
+  {
+    Write-Host " No valid asset found!"
+    return
+  }
+
   $IsNewer = CheckIfAssetIsNewer $JSON $validAsset
 
   if ($IsNewer) {
@@ -152,8 +158,6 @@ function Update {
 
 # MAIN SCRIPT
 #region Main script
-
-Write-Host $JSON[0].GetType()
 
 if ($JSON -is [Array]) {
   Write-Host "Multiple configs detected"
