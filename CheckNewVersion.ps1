@@ -42,6 +42,42 @@ function Write-TwoCols {
   Write-Host $leftColText $rightColText.PadLeft($paddingAmount) -ForegroundColor $color
 }
 
+function FlattenDirectory {
+  param (
+    [String]$topDir
+  )
+
+  $contentDir = $topDir
+
+  $maxIter = 10
+
+  while (((Get-ChildItem -Path $contentDir | Measure-Object).Count -eq 1) -and $maxIter -gt 0) {
+
+    $first = Get-ChildItem -Path $contentDir -Directory | Select-Object -First 1
+
+    if (Test-Path -Path $first -PathType Container) {
+      $contentDir = Get-ChildItem -Path $contentDir -Directory | Select-Object -First 1
+      $maxIter += 1
+    }
+    else {
+      break;
+    }
+  }
+
+  if ($contentDir -eq $topDir) { return }
+
+  Write-Host " Flattening directory" -ForegroundColor Magenta
+
+  Get-ChildItem -Path $contentDir | Move-Item -Destination $topDir
+
+  while ((Get-ChildItem -Path $contentDir -File | Measure-Object).Count -eq 0) {
+    $parent = $contentDir.Parent
+    Remove-Item $contentDir
+    $contentDir = $parent
+  }
+}
+
+
 #endregion
 
 # UPDATE FUNCTIONS
@@ -70,6 +106,8 @@ function DownloadAndExpandAsset {
   # Extract zip
   Write-Host " Extracting..." -ForegroundColor Magenta
   Expand-Archive $tempZipFile -DestinationPath $newFilesDirectory
+
+  FlattenDirectory $newFilesDirectory
 }
 
 function CheckIfAssetIsNewer {
@@ -118,7 +156,7 @@ function Update {
     $JSON
   )
 
-  Write-host ("Looking for updates to " + $JSON.name)
+  Write-host ("Looking for updates to [" + $JSON.name + "]")
 
   # Get latest release info
   $jsonResponse = Invoke-RestMethod -Uri ("https://api.github.com/repos/" + $JSON.repo + "/releases")
@@ -133,8 +171,7 @@ function Update {
       $_.name -match $JSON.asset_name_regex
     } | Select-Object -First 1)
 
-  if (-not $validAsset)
-  {
+  if (-not $validAsset) {
     Write-Host " No valid asset found!"
     return
   }

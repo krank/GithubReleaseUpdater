@@ -46,20 +46,20 @@ You can have multiple configs in the same json; just make the root element an ar
 ```
 [
   {
-    "name": "CXBOX-reloaded",
-    "out_directory": "./CXBX-reloaded/",
-    "repo": "Cxbx-Reloaded/Cxbx-Reloaded",
-    "file_to_date": "cxbx.exe",
-    "asset_name_regex": "^CxbxReloaded",
+    "name": "Marathon",
+    "out_directory": "./Marathon/",
+    "repo": "Aleph-One-Marathon/alephone",
+    "file_to_date": "Classic Marathon.exe",
+    "asset_name_regex": "Marathon-\\d*-Win\\.zip",
     "include_drafts": false,
     "include_prerelease": true
   },
   {
-    "name": "UZDoom",
-    "out_directory": "./UZDoom/",
-    "repo": "uzdoom/uzdoom",
-    "file_to_date": "uzdoom.exe",
-    "asset_name_regex": "^Windows",
+    "name": "Marathon2",
+    "out_directory": "./Marathon2/",
+    "repo": "Aleph-One-Marathon/alephone",
+    "file_to_date": "Classic Marathon 2.exe",
+    "asset_name_regex": "Marathon2-\\d*-Win\\.zip",
     "include_drafts": false,
     "include_prerelease": false
   }
